@@ -5,3 +5,5 @@ input/*
 downloads/*
 output/*
 package-lock.json
+scraper/logs/*
+scraper/csv/*
