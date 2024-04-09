@@ -7,3 +7,4 @@ output/*
 package-lock.json
 scraper/logs/*
 scraper/csv/*
+scraper/files
