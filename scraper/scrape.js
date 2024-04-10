@@ -35,8 +35,8 @@ async function scrapeFile(url) {
         if (!pageContent) return;
 
         const fileEnding = await getFileEnding(url);
-
         const filePath = path.join(__dirname, 'files', new URL(url).pathname + fileEnding);
+
         const folderPath = path.dirname(filePath);
 
         // Create directories if they don't exist
@@ -70,45 +70,77 @@ async function scrapeFiles() {
     //Begin logs for scraping
     initLogs();
 
-    // Flag to track if the required column exists
-    let columnExists = false; 
+    try {
+        // Check if the CSV file exists
+        const csvExists = await checkCsvExistence(csvPath);
+        if (!csvExists) {
+            console.error(`CSV file '${csvPath}' not found.`);
+            writeToLog(`CSV file '${csvPath}' not found. Aborting scraping.`, true);
+            // End logs for scraping 
+            closeLogs();
+            return;
+        }
 
-    // Read the CSV and check for the required column
-    fs.createReadStream(csvPath)
-        .pipe(csv())
-        .on('data', (row) => {
-            if (row[pathColName] !== undefined) {
-                columnExists = true;
-            }
-        })
-        .on('end', () => {
-            if (!columnExists) {
-                console.error(`Column with the name '${pathColName}' not found in the CSV.`);
-                writeToLog(`Column with the name '${pathColName}' not found in the CSV. Aborting scraping.`, true);
-                // End logs for scraping 
-                closeLogs();
-                return;
-            }
+        // Flag to track if the required column exists
+        let columnExists = false; 
 
-            // Proceed with scraping if the required column exists
-            console.log('Column found. Proceeding with scraping.');
-
-            // Read the CSV again and perform scraping
-            fs.createReadStream(csvPath)
-                .pipe(csv())
-                .on('data', async (row) => {
-                    // Read col name specified in config to get relative path
-                    const url = process.env.BASE_URL + row[pathColName];
-                    await scrapeFile(url);
-                })
-                .on('end', () => {
-                    console.log('Done.');
-                    writeToLog("Done!");
+        // Read the CSV and check for the required column
+        fs.createReadStream(csvPath)
+            .pipe(csv())
+            .on('data', (row) => {
+                if (row[pathColName] !== undefined) {
+                    columnExists = true;
+                }
+            })
+            .on('end', () => {
+                if (!columnExists) {
+                    console.error(`Column with the name '${pathColName}' not found in the CSV.`);
+                    writeToLog(`Column with the name '${pathColName}' not found in the CSV. Aborting scraping.`, true);
                     // End logs for scraping 
                     closeLogs();
-                });
-        });
+                    return;
+                }
+
+                // Proceed with scraping if the required column exists
+                console.log('Column found. Proceeding with scraping.');
+                writeToLog(`Column with the name '${pathColName}' found in the CSV. Proceeding with scraping.`);
+
+                // Read the CSV again and perform scraping
+                fs.createReadStream(csvPath)
+                    .pipe(csv())
+                    .on('data', async (row) => {
+                        // Read col name specified in config to get relative path
+                        const url = process.env.BASE_URL + row[pathColName];
+                        await scrapeFile(url);
+                    })
+                    .on('end', () => {
+                        console.log('Done.');
+                        writeToLog("Done!");
+                        // End logs for scraping 
+                        closeLogs();
+                    });
+            });
+    } catch (err) {
+        console.error('Error occurred while checking CSV file existence:', err);
+        writeToLog(`Error occurred while checking CSV file existence: ${err}`, true);
+        // End logs for scraping 
+        closeLogs();
+    }
 }
+
+// Function to check if CSV file exists
+function checkCsvExistence(csvPath) {
+    return new Promise((resolve) => {
+        fs.access(csvPath, fs.constants.F_OK, (err) => {
+            if (err) {
+                resolve(false);
+            } else {
+                resolve(true);
+            }
+        });
+    });
+}
+
 
 // Main execution
 //initOutput();
